@@ -34,4 +34,5 @@ const UploadForm = ({ onSubmit }: { onSubmit: (formData: FormData) => void }) =>
         </form>
     );
 };
+
 export default UploadForm;
