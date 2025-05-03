@@ -3,6 +3,9 @@ import React,{useState} from "react";
 
 const [lesson, setLesson] = useState<string | null>(null);
 
+// This is the main page of the application
+// It contains the UploadForm component and handles the file upload
+// It sends the file and notes to the server and receives the generated lesson
 const handleUpload = async (formData: FormData) => {
     const response = await fetch('/api/generate',{
         method: "POST",
