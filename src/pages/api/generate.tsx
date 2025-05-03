@@ -34,99 +34,107 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const pdfData = await pdfParse(fileBuffer);
     const pdfText = pdfData.text;
 
-    if (!pdfText) {
-      return res.status(400).json({ message: "No text found in PDF" });
+    if (!pdfText || pdfText.trim() === "") {
+      return res.status(400).json({ message: "PDF could not be processed or contains unsupported fonts." });
     }
 
-    if (!process.env.OPENAIKEY) {
+    if (!process.env.OPENAI_API_KEY) {
       return res.status(500).json({ message: "OpenAI API Key not configured" });
     }
 
     const openai = new OpenAI({
-        apiKey: process.env.OPENAPIKEY,
+        apiKey: process.env.OPENAI_API_KEY
     });
+
+    if (!openai) {
+        return res.status(500).json({ message: "OpenAI client not initialized" });
+    }
+
     const prompt = `
-      You are an expert AI tutor.
-
-      Given the following notes, your job is to create a structured, detailed, and interactive lesson plan. Follow all instructions carefully.
-
-      === INITIAL STEP ===
-
-      - Before starting, ask the student:
-      "Would you like to go section-by-section in detail (recommended for deeper learning) or receive everything at once?"
-
-      - If the student chooses "section-by-section":
-          - Only show the first section and its explanation.
-          - Stop and ask: "Would you like to continue to the next section?"
-          - Only continue when the student agrees.
-          - Repeat this for every section until the lecture is fully covered.
-
-      - If the student chooses "everything at once":
-          - Generate the full lecture, real world examples, and quiz (see below) in one response.
-
-      === LECTURE ===
-
-      - Teach the material step-by-step.
-      - Break down the lecture into clear sections and subsections based on the notes.
-      - If the notes contain headers (e.g., "Section 1.1", "Section 1.2"), use them to structure your explanation.
-      - For each section:
-          - Explain clearly and concisely.
-          - Cover every important detail.
-          - Avoid fluff or generic statements.
-          - Use simple language, lists, and examples.
-
-      === REAL WORLD EXAMPLES ===
-
-      - After each major section (or at the end if "everything at once" mode), provide real-world examples or analogies to make the material relatable.
-
-      === QUIZ (Optional) ===
-
-      - At the end of the lecture, ask:
-      "Would you like to take a quiz to test your knowledge so far?"
-
-      - If the student agrees, generate the quiz:
-          - The number of questions should reflect the complexity and length of the notes.
-          - For each question:
-              - Provide multiple choice answers (A, B, C, D).
-              - Indicate the correct answer immediately after.
-              - Include explanations.
-
-      === NEXT STEPS ===
-
-      - After the lecture and quiz (if provided), ask:
-      "Would you like to continue with a more detailed, page-by-page explanation for even deeper understanding?"
-
-      NOTES:
-      """
-      ${pdfText}
-      """
-
-      ⚡️ FORMAT THE RESPONSE LIKE THIS:
-
-      [Initial Step]
-      (Ask: Would you like to go section-by-section or receive everything at once?)
-
-      [Lecture]
-      Section 1.1 - [Section Title]
-      (Explanation or "Waiting for user to continue...")
-
-      ...
-
-      [Real World Examples]
-      (Examples)
-
-      [Quiz Invitation]
-      (Ask if they want a quiz)
-
-      [Next Steps]
-      (Ask if they want a page-by-page explanation)
-      `;
+    You are an expert AI tutor who teaches students interactively and with depth.
+    
+    Given the following notes, create a structured, detailed, and interactive lesson plan exactly as instructed below. Follow carefully and DO NOT summarize or skip any important detail.
+    
+    === INITIAL STEP ===
+    
+    - Before starting, ask the student:
+    "Would you like to go section-by-section in detail (recommended for deeper learning) or receive everything at once?"
+    
+    - If the student says "section-by-section":
+        - Only show the first section and its explanation (fully detailed).
+        - Stop and ask: "Would you like to continue to the next section?"
+        - Wait for permission before continuing.
+        - Repeat for every section until the lecture is complete.
+    
+    - If the student says "everything at once":
+        - Generate the full lecture using the instructions below.
+    
+    === LECTURE FORMAT ===
+    
+    - Teach step-by-step.
+    - For each section in the notes (e.g., Section 1.1, Section 1.2, etc):
+        - Use the exact section title.
+        - Explain clearly and thoroughly, as if teaching a beginner.
+        - Break down ideas into sub-points or numbered lists where possible.
+        - Include examples for EACH subsection.
+        - Avoid vague or generic statements.
+        - Always connect explanations to the source notes.
+    
+    === REAL WORLD EXAMPLES ===
+    
+    - After every subsection (not just at the end), add real-world analogies or relatable scenarios.
+    - These examples should help the student visualize or intuitively understand the concept.
+    
+    === QUIZ ===
+    
+    - After the lecture (or if the student asks), say:
+    "Would you like to take a quiz to test your knowledge?"
+    
+    - If yes:
+        - Generate multiple choice questions (A, B, C, D).
+        - Immediately provide the correct answer and a short explanation.
+    
+    === NEXT STEPS ===
+    
+    - After the lecture and quiz (if provided), ask:
+    "Would you like to continue with a more detailed, page-by-page explanation?"
+    
+    NOTES:
+    """
+    ${pdfText}
+    """
+    
+    ⚡️ FORMAT YOUR RESPONSE LIKE THIS ⚡️
+    
+    [Initial Step]
+    (Ask the student...) (Do not continue until they respond)
+    (If "section-by-section", show first section only, then ask to continue)
+    (If "everything at once", continue with full lesson)
+    
+    [Lecture]
+    Section 1.1 - [Title]
+    (Detailed explanation)
+    
+    Section 1.2 - [Title]
+    (Detailed explanation)
+    
+    ...
+    
+    [Real World Examples]
+    (Add examples here after each subsection)
+    
+    [Quiz Invitation]
+    (Ask if they want a quiz)
+    (If yes, generate questions with answers and explanations)
+    
+    [Next Steps]
+    (Ask if they want a page-by-page explanation)
+    `;
+    
 
     const response = await openai.chat.completions.create({
         model: "gpt-3.5-turbo",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 4000,
-        temperature: 0.5,
+        messages: [{ role: "user", content: prompt }]
     });
     const lesson = response.choices?.[0]?.message?.content;
 

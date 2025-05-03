@@ -1,32 +1,49 @@
 import React, { useState } from "react";
-import UploadForm from "@/components/UploadForm";
+import UploadForm from "../components/UploadForm";
+import LectureView from "../components/LectureView";
 
 export default function Home() {
-    const [lesson, setLesson] = useState<string | null>(null);
+  const [result, setResult] = useState<string>(""); // This holds the AI lesson result
+  const [loading, setLoading] = useState(false);
 
-    const handleUpload = async (formData: FormData) => {
-        const response = await fetch('/api/generate', {
-            method: "POST",
-            body: formData,
-        });
+  const handleGenerate = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
 
-        if (response.ok) {
-            const data = await response.json();
-            setLesson(data.result); // Make sure this matches backend key ("result" not "lesson" in generate.ts)
-        } else {
-            console.error("Error uploading file");
-        }
-    };
+    setLoading(true);
 
-    return (
-        <main>
-            <h1>AI Tutor</h1>
-            <UploadForm onSubmit={handleUpload} />
-            {lesson && (
-                <div>
-                    <pre>{lesson}</pre>
-                </div>
-            )}
-        </main>
-    );
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (data.result) {
+        setResult(data.result);
+      } else {
+        alert("Something went wrong");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error generating lesson");
+    }
+
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ padding: "2rem" }}>
+      <h1>AI Tutor</h1>
+      <p>Add notes here...</p>
+
+      <UploadForm onSubmit={(formData) => handleGenerate(formData.get("file") as File)} />
+
+      {loading && <p>Generating lesson...</p>}
+
+      {result && <LectureView result={result} />}
+    </div>
+  );
 }
+// This is the main page of the application. It imports the UploadForm and LectureView components.
